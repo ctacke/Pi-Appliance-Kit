@@ -12,18 +12,13 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Native arm64 runner: pi-gen builds an arm64 rootfs and refuses to run under
+    # QEMU emulation on amd64 ("Only a native build environment is supported"), so
+    # we build on real arm64 hardware — no binfmt/QEMU setup needed.
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      # pi-gen builds an arm64 rootfs on an amd64 runner, so the kernel needs the
-      # qemu-aarch64 handler registered in binfmt_misc (with the persistent 'F'
-      # flag) or pi-gen aborts at its arch preflight before any stage runs.
-      - name: Set up QEMU (arm64 emulation for pi-gen)
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
 
       # Bundle repo content into the custom stage so it is self-contained.
       - name: Bundle stage files
