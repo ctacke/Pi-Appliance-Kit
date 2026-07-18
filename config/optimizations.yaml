@@ -50,6 +50,9 @@ disable:
   - alsa-restore.service
   - triggerhappy.service
   - rpi-resize-swap-file.service
+  - rpi-resize.service        # stops the stock first-boot root-grow that fills the
+                              # whole card, leaving no free space for the /data
+                              # partition (rpi-data-init creates /data in that space)
 
 # --- systemd units to mask (fully blocked, can't be pulled in) --------------
 mask:

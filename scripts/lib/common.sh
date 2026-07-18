@@ -126,3 +126,22 @@ append_cmdline() {
   if [ "$added" = "0" ]; then c_skip "cmdline already has all tokens"; return 0; fi
   run bash -c "printf '%s\n' \"$line\" > '$file'" && c_ok "updated $file"
 }
+
+# Remove tokens matching shell globs from the single-line cmdline.txt (idempotent).
+# e.g. remove_cmdline "$f" resize 'init=*init_resize.sh'
+remove_cmdline() {
+  local file="$1"; shift
+  [ -f "$file" ] || { c_warn "missing $file (skipping cmdline strip)"; return 0; }
+  local line; line="$(cat "$file")"
+  local out="" tok pat removed=0
+  for tok in $line; do
+    local drop=0
+    for pat in "$@"; do
+      # shellcheck disable=SC2254  # $pat is an intentional glob
+      case "$tok" in $pat) drop=1; break ;; esac
+    done
+    if [ "$drop" = "1" ]; then removed=1; else out="${out:+$out }$tok"; fi
+  done
+  if [ "$removed" = "0" ]; then c_skip "cmdline has no matching tokens to remove"; return 0; fi
+  run bash -c "printf '%s\n' \"$out\" > '$file'" && c_ok "stripped tokens from $file"
+}

@@ -111,6 +111,9 @@ mapfile -t HW  < <(yaml_list hardware_overlays "$MANIFEST")
 apply_block "$CONFIG_TXT" "${CFG[@]}" "${HW[@]}"
 mapfile -t CMD < <(yaml_list cmdline_txt "$MANIFEST")
 append_cmdline "$CMDLINE_TXT" "${CMD[@]}"
+# Belt-and-suspenders with disabling rpi-resize.service: strip the stock first-boot
+# root-grow markers so root never expands to fill the card (keeps space for /data).
+remove_cmdline "$CMDLINE_TXT" resize 'init=*init_resize.sh'
 
 # --- 6. swap ----------------------------------------------------------------
 if [ "$(t disable_swap)" = "true" ]; then

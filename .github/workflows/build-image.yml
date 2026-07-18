@@ -40,6 +40,10 @@ jobs:
           # Password comes from a repo secret so it never lives in git.
           # Set it once:  gh secret set PI_PASSWORD
           password: ${{ secrets.PI_PASSWORD }}
+          # REQUIRED for a headless appliance: disable Raspberry Pi OS's first-boot
+          # user-setup wizard (export-image/01-user-rename) so the baked pi identity
+          # is used as-is. Without this, trixie boots into "please enter a new username".
+          disable-first-boot-user-rename: true
           # Lite = stages 0-2, then our custom stage.
           stage-list: stage0 stage1 stage2 ./pi-gen/stage-appliance
           # trixie is the release the pi-gen toolchain (default arm64 branch)
