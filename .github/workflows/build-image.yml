@@ -37,6 +37,9 @@ jobs:
           compression-level: 9
           # No desktop, no locale prompts.
           enable-ssh: 0
+          # Stream pi-gen's own stdout/stderr so build failures are visible in
+          # the Actions log (otherwise pi-gen's error is swallowed into a file).
+          verbose-output: true
 
       - name: Checksum
         run: |
