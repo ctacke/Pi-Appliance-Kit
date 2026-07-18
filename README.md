@@ -5,8 +5,8 @@
 # Pi Appliance Kit
 
 A fast-boot, appliance-grade build of **Raspberry Pi OS Lite** for embedded
-devices that run **exactly one daemon app**. Targets **Raspberry Pi 4** and
-**Pi Zero 2 W** (arm64).
+devices that run **exactly one daemon app**. Targets **Raspberry Pi 4**,
+**Pi 3B+**, and **Pi Zero 2 W** (arm64).
 
 On a stock Lite install, boot went from **31.96 s → 12.49 s** just by removing
 `cloud-init` and friends. This project takes that further — and, crucially, makes
@@ -125,6 +125,7 @@ against, not generic login:
 
 - **Purges** `cloud-init` (~7 s), ModemManager, NetworkManager (→ `dhcpcd`), BlueZ.
 - **Kernel/firmware**: `disable_splash`, `boot_delay=0`, audio & BT off, `quiet`, `fsck.mode=skip`.
+  (On the Pi 3B+ and Zero 2 W, disabling Bluetooth is safe for WiFi — WiFi is on the SDIO bus, independent of the BT UART.)
 - **Storage**: no swap, `journald` in RAM, read-only root removes fsck from the path.
 - **Network/ssh off the critical path**: WiFi starts late; SSH via `ssh.socket` (on-demand, zero boot cost) instead of the metric-gaming "late" hack.
 - **App-specific hardware** (e.g. SPI overlays) is kept **separate** from speed tweaks — set `hardware_overlays` in the manifest.
@@ -137,7 +138,7 @@ Full, tunable list: [`config/optimizations.yaml`](config/optimizations.yaml).
 |---|---|---|---|
 | Stock Lite | 31.96 s | 26.22 s | cloud-init + NetworkManager dominate |
 | Manual pass (notes.md) | 12.49 s | 7.38 s | cloud-init purged, NM→dhcpcd |
-| Pi Appliance Kit | _TBD_ | _TBD_ | fill from `boot-benchmark.sh` on Pi 4 / Zero 2 W |
+| Pi Appliance Kit | _TBD_ | _TBD_ | fill from `boot-benchmark.sh` on Pi 4 / 3B+ / Zero 2 W |
 
 Fill the last row from real hardware and PR it.
 

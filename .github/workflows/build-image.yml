@@ -32,7 +32,7 @@ jobs:
           # Lite = stages 0-2, then our custom stage.
           stage-list: stage0 stage1 stage2 ./pi-gen/stage-appliance
           release: bookworm
-          # arm64 covers both Pi 4 and Pi Zero 2 W.
+          # arm64 covers Pi 4, Pi 3B+, and Pi Zero 2 W.
           compression: xz
           compression-level: 9
           # No desktop, no locale prompts.
@@ -52,7 +52,7 @@ jobs:
             ${{ env.IMG }}
             ${{ env.IMG }}.sha256
           body: |
-            Fast-boot Raspberry Pi OS Lite (arm64) for Pi 4 / Pi Zero 2 W.
+            Fast-boot Raspberry Pi OS Lite (arm64) for Pi 4 / Pi 3B+ / Pi Zero 2 W.
             Flash the `.img.xz` with Raspberry Pi Imager. Verify with the `.sha256`.
 
       - name: Upload artifact (non-tag test builds)
