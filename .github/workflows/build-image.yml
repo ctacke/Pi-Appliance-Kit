@@ -34,7 +34,9 @@ jobs:
           image-name: pi-appliance-kit
           # Lite = stages 0-2, then our custom stage.
           stage-list: stage0 stage1 stage2 ./pi-gen/stage-appliance
-          release: bookworm
+          # trixie is the release the pi-gen toolchain (default arm64 branch)
+          # actively tracks; forcing bookworm here breaks apt signature checks.
+          release: trixie
           # arm64 covers Pi 4, Pi 3B+, and Pi Zero 2 W.
           compression: xz
           compression-level: 9
