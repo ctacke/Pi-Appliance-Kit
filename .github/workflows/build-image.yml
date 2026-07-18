@@ -17,6 +17,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # pi-gen builds an arm64 rootfs on an amd64 runner, so the kernel needs the
+      # qemu-aarch64 handler registered in binfmt_misc (with the persistent 'F'
+      # flag) or pi-gen aborts at its arch preflight before any stage runs.
+      - name: Set up QEMU (arm64 emulation for pi-gen)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       # Bundle repo content into the custom stage so it is self-contained.
       - name: Bundle stage files
         run: |
