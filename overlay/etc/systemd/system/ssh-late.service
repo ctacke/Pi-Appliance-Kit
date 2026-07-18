@@ -1,0 +1,13 @@
+[Unit]
+# pi-appliance-kit — optional: start SSH after boot (only used when
+# toggles.keep_ssh=late). Prefer keep_ssh=socket, which costs zero boot time.
+Description=Delayed SSH startup (pi-appliance-kit)
+After=multi-user.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/service ssh start
+
+[Install]
+WantedBy=multi-user.target

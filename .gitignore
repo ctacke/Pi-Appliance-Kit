@@ -1,0 +1,15 @@
+# Built images never belong in git — they ship as GitHub Release assets.
+*.img
+*.img.xz
+*.img.gz
+*.zip
+*.sha256
+
+# CI bundles the repo into the stage; keep that copy out of git.
+pi-gen/stage-appliance/00-appliance/files/
+
+# pi-gen local build artifacts
+pi-gen/work/
+pi-gen/deploy/
+
+*.log

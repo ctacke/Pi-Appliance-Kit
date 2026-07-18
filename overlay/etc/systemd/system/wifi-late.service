@@ -1,0 +1,15 @@
+[Unit]
+# pi-appliance-kit — bring WiFi up AFTER the critical boot path, so wpa_supplicant
+# and DHCP don't sit on the boot timeline. Cleaned up from notes.md.
+Description=Late WiFi startup (pi-appliance-kit)
+After=multi-user.target
+Wants=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/wpa_supplicant -B -i wlan0 -c /etc/wpa_supplicant/wpa_supplicant.conf
+ExecStartPost=/sbin/dhcpcd wlan0
+
+[Install]
+WantedBy=multi-user.target

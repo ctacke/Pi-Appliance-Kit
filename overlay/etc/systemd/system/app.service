@@ -1,0 +1,34 @@
+[Unit]
+# ============================================================================
+# pi-appliance-kit — the single daemon application unit.
+# ----------------------------------------------------------------------------
+# You do NOT edit or `systemctl enable` this on a read-only device. It ships
+# PRE-ENABLED and simply runs whatever app you install:
+#   - drop-in (default): put your app at /data/app/  with an executable `run`
+#   - baked (immutable):  ship it at /opt/app/        (via overlay/opt/app/)
+# The ConditionPathExists guards below make it a clean no-op until an app is
+# present, so enabling it with no app is harmless. See README "Install your app".
+# ============================================================================
+Description=Embedded application (pi-appliance-kit)
+Wants=app-ready.target
+Before=app-ready.target
+After=network.target
+StartLimitIntervalSec=0
+
+# Run only if an app is actually installed (OR: either path is enough).
+ConditionPathExists=|/data/app/run
+ConditionPathExists=|/opt/app/run
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/app-launch
+Restart=always
+RestartSec=2
+# Read-only-root friendliness: only /data (and tmpfs) are writable.
+ProtectSystem=strict
+ReadWritePaths=/data
+ProtectHome=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

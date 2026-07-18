@@ -1,0 +1,17 @@
+[Unit]
+# pi-appliance-kit — writable app data partition. The OS root is read-only; your
+# app's config/data/logs live here. Partition is labeled "data" by the image
+# build (or created on first boot by rpi-data-init.service).
+Description=Writable application data (/data)
+DefaultDependencies=no
+Conflicts=umount.target
+Before=local-fs.target umount.target
+
+[Mount]
+What=/dev/disk/by-label/data
+Where=/data
+Type=ext4
+Options=defaults,noatime,nofail
+
+[Install]
+WantedBy=local-fs.target

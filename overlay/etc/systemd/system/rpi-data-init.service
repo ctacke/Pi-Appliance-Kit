@@ -1,0 +1,20 @@
+[Unit]
+# pi-appliance-kit — provision /data once, before it is mounted and before the
+# read-only overlay takes effect. Self-disables after success (ConditionPathExists).
+Description=Provision writable /data partition (first boot)
+DefaultDependencies=no
+After=systemd-udev-settle.service
+Wants=systemd-udev-settle.service
+Before=data.mount local-fs.target
+ConditionPathExists=!/data/.provisioned
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/rpi-data-init.sh
+# Mark provisioned so this never runs again (written to the new /data once mounted
+# by data.mount; the marker check above short-circuits on subsequent boots).
+ExecStartPost=/bin/sh -c 'mkdir -p /data && : > /data/.provisioned 2>/dev/null || true'
+
+[Install]
+WantedBy=local-fs.target

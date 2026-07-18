@@ -1,0 +1,21 @@
+# This repo is authored on Windows but everything runs on Linux (Raspberry Pi).
+# Force LF so shell scripts, systemd units and pi-gen files never get CRLF,
+# which would break them (`bad interpreter: /usr/bin/env bash^M`).
+* text=auto eol=lf
+
+*.sh            text eol=lf
+*.service       text eol=lf
+*.target        text eol=lf
+*.mount         text eol=lf
+*.yaml          text eol=lf
+*.yml           text eol=lf
+optimizations.* text eol=lf
+EXPORT_IMAGE    text eol=lf
+prerun.sh       text eol=lf
+
+# Binary assets — never apply text/EOL normalization.
+*.img  binary
+*.xz   binary
+*.png  binary
+*.ico  binary
+*.jpg  binary

@@ -1,0 +1,83 @@
+# pi-appliance-kit — declarative optimization manifest
+# ---------------------------------------------------------------------------
+# This is the SINGLE SOURCE OF TRUTH. Both tracks consume it:
+#   - scripts/apply.sh          (Track B: apply to a running Pi over SSH)
+#   - pi-gen/stage-appliance     (Track A: bake into a prebuilt image)
+#
+# Everything here is chosen for an embedded appliance running ONE daemon app.
+# Flip the toggles below to keep features your device actually needs.
+# ---------------------------------------------------------------------------
+
+# --- Feature toggles ---------------------------------------------------------
+# The community customizes their build here WITHOUT forking the logic.
+toggles:
+  keep_wifi: true            # false on ethernet-only units (Pi 4). Zero 2 W must keep true.
+  keep_ethernet: true        # Pi 4 only; ignored on Zero 2 W (no NIC).
+  wifi_startup: late         # late = start wpa_supplicant after boot (off the critical path)
+  keep_ssh: socket           # socket | late | off   (socket = on-demand, zero boot cost)
+  keep_avahi: false          # true if you need mDNS / .local discovery
+  keep_uart_console: false   # true only if you use a serial console for debugging
+  readonly_root: true        # read-only overlay root (appliance-grade, survives power cuts)
+  disable_swap: true         # embedded: no swap. Set false only if your app needs it.
+  journald_storage: volatile # volatile (RAM, saves SD) | persistent
+  data_partition:
+    enabled: true            # writable /data partition for app config + data
+    size_mb: 512             # grown/created on first boot if missing
+    mount: /data
+    fstype: ext4
+
+# --- Packages to purge (removed entirely; biggest boot + size wins) ---------
+purge:
+  - cloud-init               # ~7s combined on stock Lite — the #1 win
+  - modemmanager
+  - network-manager          # replaced by dhcpcd (see install)
+  - bluez                    # + dtoverlay=disable-bt below
+  - dphys-swapfile           # only when toggles.disable_swap
+
+# --- Packages to install -----------------------------------------------------
+install:
+  - dhcpcd5                  # lightweight DHCP client replacing NetworkManager
+
+# --- systemd units to disable (won't start at boot; still installed) --------
+disable:
+  - NetworkManager-wait-online.service
+  - rpi-eeprom-update.service
+  - e2scrub_reap.service
+  - hciuart.service
+  - keyboard-setup.service
+  - console-setup.service
+  - alsa-restore.service
+  - triggerhappy.service
+  - rpi-resize-swap-file.service
+
+# --- systemd units to mask (fully blocked, can't be pulled in) --------------
+mask:
+  - systemd-zram-setup@zram0.service   # when disable_swap
+
+# --- systemd units to enable (from overlay/) --------------------------------
+enable:
+  - app-ready.target
+  # app.service ships PRE-ENABLED but is guarded by ConditionPathExists, so it's
+  # a harmless no-op until you install an app at /data/app/run (or /opt/app/run).
+  # The user never needs `systemctl enable` on a read-only device.
+  - app.service
+
+# --- Firmware config.txt appends (see config/config.txt.d/*) ----------------
+# Applied as a labeled block appended to /boot/firmware/config.txt.
+config_txt:
+  - "[all]"
+  - "disable_splash=1"      # skip rainbow splash
+  - "boot_delay=0"          # no artificial delay
+  - "dtparam=audio=off"     # no onboard audio
+  - "dtoverlay=disable-bt"  # Bluetooth off (frees UART, drops hciuart)
+
+# --- Kernel cmdline.txt additions (space-separated, appended to line) --------
+cmdline_txt:
+  - "quiet"                 # fewer kernel messages
+  - "loglevel=3"
+  - "fsck.mode=skip"        # safe with read-only root
+
+# --- App-specific hardware (NOT boot-speed; separated on purpose) -----------
+# Uncomment / edit for YOUR board. These do not affect boot time.
+hardware_overlays: []
+  # - "dtoverlay=spi0-0cs"  # example: enable SPI0 with no CS lines

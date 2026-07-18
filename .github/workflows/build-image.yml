@@ -1,0 +1,65 @@
+name: Build image
+
+# Builds a fast-boot Raspberry Pi OS Lite (arm64) image and publishes it as a
+# GitHub Release asset. The .img.xz lives on the Release — never in git.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: {}   # manual test builds
+
+permissions:
+  contents: write          # needed to create the Release + upload assets
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Bundle repo content into the custom stage so it is self-contained.
+      - name: Bundle stage files
+        run: |
+          FILES=pi-gen/stage-appliance/00-appliance/files
+          mkdir -p "$FILES"
+          cp -a scripts config overlay "$FILES/"
+
+      - name: Build image (pi-gen)
+        id: build
+        uses: usimd/pi-gen-action@v1
+        with:
+          image-name: pi-appliance-kit
+          # Lite = stages 0-2, then our custom stage.
+          stage-list: stage0 stage1 stage2 ./pi-gen/stage-appliance
+          release: bookworm
+          # arm64 covers both Pi 4 and Pi Zero 2 W.
+          compression: xz
+          compression-level: 9
+          # No desktop, no locale prompts.
+          enable-ssh: 0
+
+      - name: Checksum
+        run: |
+          IMG="${{ steps.build.outputs.image-path }}"
+          echo "IMG=$IMG" >> "$GITHUB_ENV"
+          sha256sum "$IMG" > "$IMG.sha256"
+
+      - name: Publish to Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.IMG }}
+            ${{ env.IMG }}.sha256
+          body: |
+            Fast-boot Raspberry Pi OS Lite (arm64) for Pi 4 / Pi Zero 2 W.
+            Flash the `.img.xz` with Raspberry Pi Imager. Verify with the `.sha256`.
+
+      - name: Upload artifact (non-tag test builds)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pi-appliance-kit-image
+          path: |
+            ${{ env.IMG }}
+            ${{ env.IMG }}.sha256

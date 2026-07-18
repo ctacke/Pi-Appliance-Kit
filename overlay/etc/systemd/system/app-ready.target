@@ -1,0 +1,12 @@
+[Unit]
+# pi-appliance-kit — the REAL "boot complete" marker for this appliance.
+# Your daemon reaches this instead of leaning on multi-user.target, so
+# `systemd-analyze` and boot-benchmark.sh measure time-to-YOUR-app, not
+# time-to-generic-login.
+Description=Application ready (pi-appliance-kit)
+Requires=multi-user.target
+After=multi-user.target
+AllowIsolate=no
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,20 @@
+#!/bin/sh
+# pi-appliance-kit — resolve and launch the single appliance app.
+# One launcher serves both install models so app.service needs no templating:
+#   - drop-in (default): /data/app/run   (writable partition, no rebuild)
+#   - baked (immutable):  /opt/app/run    (shipped in the read-only image)
+# The first executable "run" found wins. We cd into its directory so the app
+# can use relative paths for its config/data.
+set -eu
+
+for entry in /data/app/run /opt/app/run; do
+  if [ -x "$entry" ]; then
+    cd "$(dirname "$entry")"
+    exec "$entry" "$@"
+  fi
+done
+
+# No app installed. app.service's ConditionPathExists guards normally prevent us
+# from getting here; this is just a clear message if run by hand.
+echo "pi-appliance-kit: no app found. Install one at /data/app/run (see README)." >&2
+exit 1
