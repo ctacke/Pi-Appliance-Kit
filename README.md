@@ -114,8 +114,10 @@ and rebuild the image so every device ships with them.)
 
 ### Changing the username, hostname, or password
 
-The image ships with a baked identity — user **`pi`**, hostname **`pi-appliance`**,
-and the password set at build time (via the `PI_PASSWORD` build secret). Because
+> The image ships with a baked identity — user **`pi`**, hostname **`pi-appliance`**,
+> and the password set at build time (currently set to `pi123!`). 
+
+Because
 the root **and** boot partitions are read-only, edits you make while the device is
 running are held in a RAM overlay and **discarded on reboot** — so `passwd`,
 `hostnamectl`, or editing `/etc/hostname` won't stick on their own.
