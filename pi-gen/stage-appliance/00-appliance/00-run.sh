@@ -21,7 +21,7 @@ cp -a "${REPO_DIR}/scripts" "${REPO_DIR}/config" "${REPO_DIR}/overlay" "${DEST}/
 
 # Run apply.sh inside the image chroot. apt/systemctl/enable all work under
 # on_chroot. Firmware paths resolve to /boot/firmware inside the image.
-on_chroot bash -e <<'EOF'
+on_chroot <<'EOF'
 export DEBIAN_FRONTEND=noninteractive
 cd /opt/pi-appliance-kit
 bash scripts/apply.sh

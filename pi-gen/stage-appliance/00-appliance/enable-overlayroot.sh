@@ -11,10 +11,17 @@
 # though the OS root discards writes on power-off.
 ROOTFS_DIR="$1"
 
-on_chroot() { :; }  # provided by pi-gen when sourced; noop guard if run standalone
-if command -v capsh >/dev/null 2>&1 || [ -n "${STAGE_DIR:-}" ]; then
-  # Inside pi-gen: on_chroot is defined by the build environment.
-  on_chroot bash -e <<'EOF'
+# on_chroot is exported by pi-gen's build environment (export -f on_chroot). Only
+# stub it out when we're NOT inside pi-gen (standalone run), so we never clobber
+# the real function — doing so would silently skip read-only root entirely.
+if ! declare -F on_chroot >/dev/null 2>&1; then
+  echo "WARN: on_chroot unavailable (not inside pi-gen); read-only root NOT enabled."
+  on_chroot() { :; }
+fi
+
+# pi-gen's on_chroot already execs 'bash -e' inside the chroot and reads the
+# script from stdin — feed the heredoc directly, do NOT pass 'bash' as an arg.
+on_chroot <<'EOF'
 if command -v raspi-config >/dev/null 2>&1; then
   raspi-config nonint enable_overlayfs || echo "WARN: enable_overlayfs failed; verify on hardware"
   raspi-config nonint enable_bootro   || echo "WARN: enable_bootro failed; boot stays rw"
@@ -22,4 +29,3 @@ else
   echo "WARN: raspi-config absent; read-only root NOT enabled. See docs."
 fi
 EOF
-fi
