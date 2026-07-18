@@ -82,8 +82,17 @@ if [ "$(t keep_wifi)" = "true" ] && [ "$(t wifi_startup)" = "late" ]; then
   enable_unit wifi-late.service
 fi
 
-# avahi
-[ "$(t keep_avahi)" = "true" ] || disable_unit avahi-daemon.service
+# avahi (mDNS / .local). When kept, start it LATE — off the boot critical path,
+# to match the wifi/ssh-late strategy. avahi is only useful once the network is
+# up (also deferred), so early start would just burn boot time.
+if [ "$(t keep_avahi)" = "true" ]; then
+  install_pkg avahi-daemon   # usually already present on Lite; ensures the unit exists
+  run systemctl disable avahi-daemon.service avahi-daemon.socket 2>/dev/null || true
+  enable_unit avahi-late.service
+else
+  disable_unit avahi-daemon.service
+  run systemctl disable avahi-daemon.socket 2>/dev/null || true
+fi
 
 c_info "enabling units"
 while IFS= read -r u; do enable_unit "$u"; done < <(yaml_list enable "$MANIFEST")

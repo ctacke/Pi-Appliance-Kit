@@ -32,6 +32,14 @@ jobs:
         uses: usimd/pi-gen-action@v1
         with:
           image-name: pi-appliance-kit
+          # Identity is baked at build time: cloud-init is purged and root is
+          # read-only, so Raspberry Pi Imager's flash-time customisation does not
+          # apply to this image. Every flashed device comes up headless-ready.
+          hostname: pi-appliance
+          username: pi
+          # Password comes from a repo secret so it never lives in git.
+          # Set it once:  gh secret set PI_PASSWORD
+          password: ${{ secrets.PI_PASSWORD }}
           # Lite = stages 0-2, then our custom stage.
           stage-list: stage0 stage1 stage2 ./pi-gen/stage-appliance
           # trixie is the release the pi-gen toolchain (default arm64 branch)
@@ -40,8 +48,9 @@ jobs:
           # arm64 covers Pi 4, Pi 3B+, and Pi Zero 2 W.
           compression: xz
           compression-level: 9
-          # No desktop, no locale prompts.
-          enable-ssh: 0
+          # No desktop, no locale prompts. SSH on (apply.sh then makes it
+          # socket-activated so it stays off the boot critical path).
+          enable-ssh: 1
           # Stream pi-gen's own stdout/stderr so build failures are visible in
           # the Actions log (otherwise pi-gen's error is swallowed into a file).
           verbose-output: true

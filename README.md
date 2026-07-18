@@ -112,6 +112,33 @@ sudo raspi-config nonint enable_overlayfs && sudo reboot
 (Better for fleets: add the packages to `config/optimizations.yaml` `install:`
 and rebuild the image so every device ships with them.)
 
+### Changing the username, hostname, or password
+
+The image ships with a baked identity — user **`pi`**, hostname **`pi-appliance`**,
+and the password set at build time (via the `PI_PASSWORD` build secret). Because
+the root **and** boot partitions are read-only, edits you make while the device is
+running are held in a RAM overlay and **discarded on reboot** — so `passwd`,
+`hostnamectl`, or editing `/etc/hostname` won't stick on their own.
+
+To change them **persistently**, lift the overlay, edit, then restore it (same
+procedure as installing packages above):
+
+```bash
+sudo raspi-config nonint disable_overlayfs && sudo reboot
+# after reboot the root filesystem is writable:
+sudo passwd pi                       # change the password
+sudo hostnamectl set-hostname NEWNAME   # change the hostname
+sudo nano /etc/hostname /etc/hosts   # (hostnamectl already updates these)
+# to rename/add a user, edit it here too (e.g. `sudo usermod`, `sudo adduser`)
+sudo raspi-config nonint enable_overlayfs && sudo reboot
+```
+
+After the final reboot the overlay is back on and your changes persist. `nano`
+is included in the image for exactly this kind of on-device editing.
+
+(For fleets, prefer rebuilding the image with new `hostname` / `PI_PASSWORD`
+values in `.github/workflows/build-image.yml` so every device ships ready.)
+
 ### Measuring boot
 
 `app.service` reaches `app-ready.target` — that's what boot time is measured

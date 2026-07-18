@@ -15,7 +15,7 @@ toggles:
   keep_ethernet: true        # Pi 4 and 3B+ (both have a NIC); ignored on Zero 2 W (no NIC).
   wifi_startup: late         # late = start wpa_supplicant after boot (off the critical path)
   keep_ssh: socket           # socket | late | off   (socket = on-demand, zero boot cost)
-  keep_avahi: false          # true if you need mDNS / .local discovery
+  keep_avahi: true           # mDNS / .local discovery; started late (off boot path)
   keep_uart_console: false   # true only if you use a serial console for debugging
   readonly_root: true        # read-only overlay root (appliance-grade, survives power cuts)
   disable_swap: true         # embedded: no swap. Set false only if your app needs it.
@@ -37,6 +37,7 @@ purge:
 # --- Packages to install -----------------------------------------------------
 install:
   - dhcpcd5                  # lightweight DHCP client replacing NetworkManager
+  - nano                     # on-device editor (root is read-only; see README)
 
 # --- systemd units to disable (won't start at boot; still installed) --------
 disable:

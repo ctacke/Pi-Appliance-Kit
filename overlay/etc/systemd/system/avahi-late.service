@@ -1,0 +1,17 @@
+[Unit]
+# pi-appliance-kit — start avahi (mDNS / .local discovery) AFTER the critical
+# boot path. mDNS is only useful once the network is up (which is also deferred),
+# so running it late costs zero boot time while still giving you <host>.local for
+# SSH a few seconds after boot. Used when toggles.keep_avahi=true.
+Description=Late avahi/mDNS startup (pi-appliance-kit)
+After=multi-user.target
+Wants=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# avahi-daemon.service ships disabled (off the critical path); start it on demand.
+ExecStart=/bin/systemctl start avahi-daemon.service
+
+[Install]
+WantedBy=multi-user.target
