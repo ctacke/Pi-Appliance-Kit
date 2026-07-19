@@ -53,6 +53,11 @@ disable:
   - rpi-resize.service        # stops the stock first-boot root-grow that fills the
                               # whole card, leaving no free space for the /data
                               # partition (rpi-data-init creates /data in that space)
+  - udisks2.service           # disk-manager daemon; unused on an appliance (was on
+                              # the boot critical path, ~0.9s)
+  - apt-daily.timer           # appliance never auto-updates; these compete for
+  - apt-daily-upgrade.timer   # CPU/IO during boot (~3.6s of apt work)
+  - man-db.timer              # no man-page index rebuilds needed
 
 # --- systemd units to mask (fully blocked, can't be pulled in) --------------
 mask:
@@ -74,6 +79,8 @@ config_txt:
   - "boot_delay=0"          # no artificial delay
   - "dtparam=audio=off"     # no onboard audio
   - "dtoverlay=disable-bt"  # Bluetooth off (frees UART, drops hciuart)
+  - "initial_turbo=30"      # run CPU/GPU at turbo for the first 30s → faster boot
+  - "camera_auto_detect=0"  # skip camera probing (set 1 if you use a Pi camera)
 
 # --- Kernel cmdline.txt additions (space-separated, appended to line) --------
 cmdline_txt:

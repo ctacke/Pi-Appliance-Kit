@@ -97,6 +97,15 @@ fi
 c_info "enabling units"
 while IFS= read -r u; do enable_unit "$u"; done < <(yaml_list enable "$MANIFEST")
 
+# Boot to multi-user.target, not graphical.target. app.service is WantedBy it and
+# app-ready.target Requires it; a display app draws via DRM/fb under multi-user too.
+if [ "$(systemctl get-default 2>/dev/null)" != "multi-user.target" ]; then
+  run systemctl set-default multi-user.target >/dev/null 2>&1 && c_ok "default target: multi-user.target" \
+    || c_warn "could not set default target"
+else
+  c_skip "default target already multi-user.target"
+fi
+
 # --- 4. journald ------------------------------------------------------------
 if [ "$(t journald_storage)" = "volatile" ]; then
   run mkdir -p /etc/systemd/journald.conf.d

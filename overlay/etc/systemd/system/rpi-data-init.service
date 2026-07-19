@@ -6,8 +6,11 @@
 # a marker under /data would land on the pre-mount dir and never persist.)
 Description=Provision writable /data partition (first boot)
 DefaultDependencies=no
-After=systemd-udev-settle.service
-Wants=systemd-udev-settle.service
+# Order after udev has processed coldplug events (udev-trigger) — NOT the
+# deprecated udev-settle, which waited for ALL events and cost ~1.7s on the boot
+# critical path. The root disk /dev/mmcblk0 already exists (root mounts from it),
+# and the script does its own partprobe + settle for any partition it creates.
+After=systemd-udev-trigger.service
 Before=data.mount local-fs.target
 
 [Service]
