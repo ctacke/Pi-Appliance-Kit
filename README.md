@@ -179,6 +179,17 @@ sudo wifi-setup "MySSID" "MyPassphrase" GB   # ...with a different country
 
 It writes the config, brings the link up, and waits for an IP — no reboot needed.
 
+**Interactively, on the device:**
+
+```bash
+sudo raspi-config    # System/Interface Options → WLAN — the radio is already
+                     # up, so it can scan and let you pick a network
+```
+
+`wifi-late.service` brings the radio up at boot even before any network is
+configured, so `raspi-config` (and `iw dev wlan0 scan`) can see it. NetworkManager
+is removed, so `nmtui`/`nmcli` are not available.
+
 **Headless, with the SD card in a PC:** drop **one** of these onto the
 `bootfs`/`boot` partition (the FAT one Windows/macOS can see). On first boot the
 device consumes it, connects, then deletes it so credentials don't linger on the

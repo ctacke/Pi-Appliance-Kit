@@ -68,7 +68,20 @@ seed_from_boot() {
 }
 seed_from_boot
 
-# --- 2. pick a config -------------------------------------------------------
+# --- 2. regulatory domain + radio -------------------------------------------
+# Do this UNCONDITIONALLY, before we know whether a config exists. The country
+# must be set before the radio will transmit, and until it's unblocked and
+# up, wlan0 stays DOWN — raspi-config/iw then report "no wireless interface"
+# and a user can't even configure WiFi interactively. Leaving the link live
+# makes the adapter usable for scanning and interactive setup with no config.
+if command -v raspi-config >/dev/null 2>&1; then
+  raspi-config nonint do_wifi_country "$WIFI_COUNTRY" >/dev/null 2>&1 || true
+fi
+command -v iw >/dev/null 2>&1 && iw reg set "$WIFI_COUNTRY" 2>/dev/null || true
+command -v rfkill >/dev/null 2>&1 && rfkill unblock wifi 2>/dev/null || true
+ip link set "$IFACE" up 2>/dev/null || true
+
+# --- 3. pick a config -------------------------------------------------------
 CONF=""
 if [ -s "$DATA_CONF" ]; then CONF="$DATA_CONF"
 elif [ -s "$ETC_CONF" ]; then CONF="$ETC_CONF"
@@ -76,18 +89,9 @@ fi
 
 if [ -z "$CONF" ]; then
   log "no WiFi config found ($DATA_CONF or $ETC_CONF) — run 'wifi-setup', or put"
-  log "wpa_supplicant.conf / wifi.conf on the boot partition. Skipping bring-up."
+  log "wpa_supplicant.conf / wifi.conf on the boot partition. Radio is up; skipping association."
   exit 0
 fi
-
-# --- 3. regulatory domain + radio -------------------------------------------
-# Order matters: the country must be set before the radio will transmit.
-if command -v raspi-config >/dev/null 2>&1; then
-  raspi-config nonint do_wifi_country "$WIFI_COUNTRY" >/dev/null 2>&1 || true
-fi
-command -v iw >/dev/null 2>&1 && iw reg set "$WIFI_COUNTRY" 2>/dev/null || true
-command -v rfkill >/dev/null 2>&1 && rfkill unblock wifi 2>/dev/null || true
-ip link set "$IFACE" up 2>/dev/null || true
 
 # --- 4. associate + DHCP ----------------------------------------------------
 if wpa_cli -i "$IFACE" status >/dev/null 2>&1; then
