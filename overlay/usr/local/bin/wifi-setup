@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# pi-appliance-kit — configure WiFi from a console/SSH session.
+#
+#   sudo wifi-setup                      # prompts for SSID + passphrase
+#   sudo wifi-setup MySSID 'secret'      # non-interactive
+#   sudo wifi-setup MySSID 'secret' GB   # ...with a different country
+#
+# Writes /data/wifi/wpa_supplicant.conf (persistent — root is a read-only
+# overlay, so /etc would be discarded on power-off) and brings the link up.
+set -euo pipefail
+
+[ "$(id -u)" = "0" ] || { echo "wifi-setup: must run as root (use sudo)" >&2; exit 1; }
+
+WIFI_COUNTRY=US
+[ -r /etc/default/pi-appliance-wifi ] && . /etc/default/pi-appliance-wifi
+
+SSID="${1:-}"
+PSK="${2:-}"
+COUNTRY="${3:-$WIFI_COUNTRY}"
+
+if [ -z "$SSID" ]; then
+  read -r -p "SSID: " SSID
+  [ -n "$SSID" ] || { echo "wifi-setup: SSID is required" >&2; exit 1; }
+  read -r -s -p "Passphrase (blank for an open network): " PSK; echo
+  read -r -p "Country code [$COUNTRY]: " ans
+  [ -n "$ans" ] && COUNTRY="$ans"
+fi
+
+install -d -m 0700 /data/wifi
+CONF=/data/wifi/wpa_supplicant.conf
+
+{
+  echo "ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev"
+  echo "update_config=1"
+  echo "country=$COUNTRY"
+  if [ -n "$PSK" ]; then
+    # Store the hashed PSK, not the plaintext passphrase.
+    wpa_passphrase "$SSID" "$PSK" | grep -v '^\s*#psk='
+  else
+    printf 'network={\n\tssid="%s"\n\tkey_mgmt=NONE\n}\n' "$SSID"
+  fi
+} > "$CONF"
+chmod 0600 "$CONF"
+echo "wifi-setup: wrote $CONF"
+
+systemctl restart wifi-late.service 2>/dev/null || /usr/local/bin/wifi-up
+
+echo "wifi-setup: waiting for an address on wlan0..."
+for _ in $(seq 1 20); do
+  addr="$(ip -4 -o addr show wlan0 2>/dev/null | awk '{print $4}')"
+  if [ -n "$addr" ]; then echo "wifi-setup: connected — $addr"; exit 0; fi
+  sleep 1
+done
+echo "wifi-setup: no address yet. Check: systemctl status wifi-late.service; wpa_cli -i wlan0 status" >&2
+exit 1

@@ -29,7 +29,21 @@ Flip the toggles there; you never fork the logic.
 
 1. Download the latest `pi-appliance-kit-*.img.xz` from the [Releases] page (verify with the `.sha256`).
 2. In **Raspberry Pi Imager** → *Use custom* → select the file (or paste the release URL).
-3. Set WiFi/hostname/user in Imager's settings as usual, flash, boot.
+3. Flash and boot.
+
+> **Imager's "Customisation" (OS settings) does not apply to custom images.**
+> Raspberry Pi Imager only offers the WiFi / user / hostname / locale settings
+> for its own catalog images — when you flash a custom `.img`, that step is
+> skipped entirely. **Everything must be configured manually after first boot:**
+>
+> - **WiFi** — see [Setting up WiFi](#setting-up-wifi) below.
+> - **User / password / hostname** — see
+>   [Changing the username, hostname, or password](#changing-the-username-hostname-or-password).
+> - **Region / time zone** — see
+>   [Changing the region or time zone](#changing-the-region-or-time-zone).
+>
+> The image ships with a baked-in default identity and region so it boots and is
+> reachable without any of this; the sections above are for changing those defaults.
 
 The image ships with:
 - **Read-only overlay root** — survives sudden power loss, no fsck, low SD wear.
@@ -140,6 +154,93 @@ is included in the image for exactly this kind of on-device editing.
 
 (For fleets, prefer rebuilding the image with new `hostname` / `PI_PASSWORD`
 values in `.github/workflows/build-image.yml` so every device ships ready.)
+
+### Setting up WiFi
+
+WiFi must be set up manually after boot — Raspberry Pi Imager can't customize a
+custom image (its OS-settings step is skipped for non-catalog `.img` files), and
+this image removes NetworkManager (slow to boot, heavier than an appliance
+needs), so `nmtui` and `nmcli` aren't available either. WiFi is brought up by
+`wifi-late.service` **after** the boot-critical path.
+Because the country code must be known before the radio will transmit, the image
+ships with a default region — **US** — baked in (change it in
+`config/optimizations.yaml`, `toggles.wifi_country`).
+
+Pick whichever of these fits how you deploy:
+
+**On the device (console or SSH over Ethernet):**
+
+```bash
+sudo wifi-setup                     # prompts for SSID + passphrase
+# or non-interactively:
+sudo wifi-setup "MySSID" "MyPassphrase"
+sudo wifi-setup "MySSID" "MyPassphrase" GB   # ...with a different country
+```
+
+It writes the config, brings the link up, and waits for an IP — no reboot needed.
+
+**Headless, with the SD card in a PC:** drop **one** of these onto the
+`bootfs`/`boot` partition (the FAT one Windows/macOS can see). On first boot the
+device consumes it, connects, then deletes it so credentials don't linger on the
+readable partition:
+
+- `wifi.conf` — simple key/value:
+  ```ini
+  SSID=MySSID
+  PSK=MyPassphrase
+  COUNTRY=US
+  ```
+- or a full `wpa_supplicant.conf`, if you already have one.
+
+**Where credentials live:** `/data/wifi/wpa_supplicant.conf`. The root
+filesystem is a read-only overlay, so WiFi config is stored on the writable
+`/data` partition and survives reboots and power cuts. The passphrase is stored
+as a hashed PSK, never plaintext.
+
+**Troubleshooting** (`wlan0` stuck in state `DOWN`, or "no network adapters"):
+
+```bash
+systemctl status wifi-late.service   # did bring-up fail?
+rfkill list wifi                     # "Soft blocked: yes" → country not set
+wpa_cli -i wlan0 status              # association state
+sudo systemctl restart wifi-late.service
+```
+
+### Changing the region or time zone
+
+Both have build-time defaults in `config/optimizations.yaml`:
+
+```yaml
+toggles:
+  wifi_country: US               # ISO 3166-1 alpha-2 — the WiFi regulatory domain
+  timezone: America/Chicago      # tzdata name — US Central
+```
+
+The defaults are **US / US-Central**. Edit these and rebuild (or re-run
+`scripts/apply.sh` on an existing device) to change the shipped defaults.
+
+**Region (WiFi country):** on a running device, use `wifi-setup` with an explicit
+country (`sudo wifi-setup "MySSID" "MyPass" GB`), or set it directly:
+
+```bash
+sudo raspi-config nonint do_wifi_country GB
+sudo rfkill unblock wifi
+sudo systemctl restart wifi-late.service
+```
+
+**Time zone:** `/etc/localtime` is a symlink baked into the read-only root, so a
+plain `timedatectl set-timezone` won't stick across reboots. Lift the overlay
+first (same procedure as changing the password above):
+
+```bash
+sudo raspi-config nonint disable_overlayfs && sudo reboot
+# after reboot the root filesystem is writable:
+sudo timedatectl set-timezone America/New_York   # `timedatectl list-timezones` to browse
+sudo raspi-config nonint enable_overlayfs && sudo reboot
+```
+
+For fleets, prefer setting `timezone:` in the manifest and rebuilding so every
+device ships correct.
 
 ### Measuring boot
 

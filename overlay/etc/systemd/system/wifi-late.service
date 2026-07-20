@@ -1,15 +1,18 @@
 [Unit]
 # pi-appliance-kit — bring WiFi up AFTER the critical boot path, so wpa_supplicant
-# and DHCP don't sit on the boot timeline. Cleaned up from notes.md.
+# and DHCP don't sit on the boot timeline.
+#
+# Requires data.mount: credentials live at /data/wifi/wpa_supplicant.conf because
+# root is a read-only overlay. wifi-up also seeds that file from the boot
+# partition on first boot, so the SD card can be configured from a PC.
 Description=Late WiFi startup (pi-appliance-kit)
-After=multi-user.target
-Wants=network.target
+After=multi-user.target data.mount
+Wants=network.target data.mount
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/sbin/wpa_supplicant -B -i wlan0 -c /etc/wpa_supplicant/wpa_supplicant.conf
-ExecStartPost=/sbin/dhcpcd wlan0
+ExecStart=/usr/local/bin/wifi-up
 
 [Install]
 WantedBy=multi-user.target

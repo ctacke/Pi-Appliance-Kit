@@ -77,9 +77,48 @@ case "$(t keep_ssh)" in
 esac
 
 # wifi strategy
-if [ "$(t keep_wifi)" = "true" ] && [ "$(t wifi_startup)" = "late" ]; then
-  run systemctl disable wpa_supplicant.service 2>/dev/null || true
-  enable_unit wifi-late.service
+if [ "$(t keep_wifi)" = "true" ]; then
+  # Bake the regulatory country where wifi-up/wifi-setup can read it. Without a
+  # country the radio stays rfkill-blocked and wlan0 never leaves state DOWN —
+  # and with NetworkManager purged, nothing else would ever set it.
+  WIFI_COUNTRY="$(t wifi_country)"; WIFI_COUNTRY="${WIFI_COUNTRY:-US}"
+  if [ "$DRY_RUN" = "0" ]; then
+    install -D -m 0644 /dev/stdin /etc/default/pi-appliance-wifi <<EOF
+# Written by pi-appliance-kit apply.sh from config/optimizations.yaml.
+WIFI_COUNTRY=$WIFI_COUNTRY
+EOF
+    # Persist it in the firmware/regulatory config too, so the country survives
+    # even if wifi-up is bypassed.
+    if command -v raspi-config >/dev/null 2>&1; then
+      raspi-config nonint do_wifi_country "$WIFI_COUNTRY" >/dev/null 2>&1 \
+        || c_warn "do_wifi_country failed (no radio in chroot is normal)"
+    fi
+    run rfkill unblock wifi 2>/dev/null || true
+    c_ok "wifi country: $WIFI_COUNTRY"
+  else
+    c_skip "would set wifi country to $WIFI_COUNTRY"
+  fi
+
+  if [ "$(t wifi_startup)" = "late" ]; then
+    run systemctl disable wpa_supplicant.service 2>/dev/null || true
+    enable_unit wifi-late.service
+  fi
+fi
+
+# timezone
+TZ_NAME="$(t timezone)"
+if [ -n "$TZ_NAME" ]; then
+  if [ "$DRY_RUN" = "0" ]; then
+    if [ -f "/usr/share/zoneinfo/$TZ_NAME" ]; then
+      run ln -sf "/usr/share/zoneinfo/$TZ_NAME" /etc/localtime
+      echo "$TZ_NAME" > /etc/timezone
+      c_ok "timezone: $TZ_NAME"
+    else
+      c_warn "unknown timezone '$TZ_NAME' — leaving the system default"
+    fi
+  else
+    c_skip "would set timezone to $TZ_NAME"
+  fi
 fi
 
 # avahi (mDNS / .local). When kept, start it LATE — off the boot critical path,

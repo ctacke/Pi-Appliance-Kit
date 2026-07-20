@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# pi-appliance-kit — bring WiFi up. Called by wifi-late.service after the boot
+# critical path; safe to re-run by hand.
+#
+# Why this exists: the kit purges NetworkManager (see config/optimizations.yaml)
+# so nothing else claims the radio. Three things must happen in order, and the
+# stock image does none of them for us:
+#   1. set the regulatory country  — the radio is rfkill-blocked until it's known
+#   2. unblock rfkill + link up
+#   3. wpa_supplicant + dhcpcd against a config that actually exists
+#
+# Credentials live on /data (writable, persistent) because root is a read-only
+# overlay — anything written to /etc is discarded on power-off.
+set -euo pipefail
+
+IFACE="${IFACE:-wlan0}"
+DATA_CONF=/data/wifi/wpa_supplicant.conf
+ETC_CONF=/etc/wpa_supplicant/wpa_supplicant.conf
+
+# Baked by scripts/apply.sh from the manifest's wifi_country toggle.
+WIFI_COUNTRY=US
+[ -r /etc/default/pi-appliance-wifi ] && . /etc/default/pi-appliance-wifi
+
+FW_DIR=/boot/firmware; [ -d "$FW_DIR" ] || FW_DIR=/boot
+
+log() { echo "wifi-up: $*"; }
+
+# --- 1. seed credentials from the boot partition ----------------------------
+# Lets a user configure WiFi with the SD card in a PC — no console needed. Two
+# accepted drops, matching what people already know from Raspberry Pi OS:
+#   $FW_DIR/wpa_supplicant.conf  — a complete wpa_supplicant config
+#   $FW_DIR/wifi.conf            — simple SSID= / PSK= / COUNTRY= key=value
+seed_from_boot() {
+  local src="$FW_DIR/wpa_supplicant.conf" simple="$FW_DIR/wifi.conf"
+  install -d -m 0700 /data/wifi
+
+  if [ -f "$src" ]; then
+    log "seeding from $src"
+    install -m 0600 "$src" "$DATA_CONF"
+  elif [ -f "$simple" ]; then
+    log "seeding from $simple"
+    local SSID='' PSK='' COUNTRY=''
+    # shellcheck disable=SC1090
+    . "$simple"
+    [ -n "$SSID" ] || { log "$simple has no SSID="; return 0; }
+    [ -n "$COUNTRY" ] && WIFI_COUNTRY="$COUNTRY"
+    {
+      echo "ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev"
+      echo "update_config=1"
+      echo "country=$WIFI_COUNTRY"
+      # wpa_passphrase writes the hashed PSK, so the plaintext never lands on /data
+      wpa_passphrase "$SSID" "$PSK" | grep -v '^\s*#psk='
+    } > "$DATA_CONF"
+    chmod 0600 "$DATA_CONF"
+  else
+    return 0
+  fi
+
+  # Don't leave credentials sitting on a FAT partition any machine can read.
+  # The boot partition is mounted ro by enable_bootro; remount, wipe, restore.
+  if mount -o remount,rw "$FW_DIR" 2>/dev/null; then
+    rm -f "$src" "$simple"
+    mount -o remount,ro "$FW_DIR" 2>/dev/null || true
+    log "consumed and removed the boot-partition seed file"
+  else
+    log "WARNING: could not remove the seed file from $FW_DIR (still readable)"
+  fi
+}
+seed_from_boot
+
+# --- 2. pick a config -------------------------------------------------------
+CONF=""
+if [ -s "$DATA_CONF" ]; then CONF="$DATA_CONF"
+elif [ -s "$ETC_CONF" ]; then CONF="$ETC_CONF"
+fi
+
+if [ -z "$CONF" ]; then
+  log "no WiFi config found ($DATA_CONF or $ETC_CONF) — run 'wifi-setup', or put"
+  log "wpa_supplicant.conf / wifi.conf on the boot partition. Skipping bring-up."
+  exit 0
+fi
+
+# --- 3. regulatory domain + radio -------------------------------------------
+# Order matters: the country must be set before the radio will transmit.
+if command -v raspi-config >/dev/null 2>&1; then
+  raspi-config nonint do_wifi_country "$WIFI_COUNTRY" >/dev/null 2>&1 || true
+fi
+command -v iw >/dev/null 2>&1 && iw reg set "$WIFI_COUNTRY" 2>/dev/null || true
+command -v rfkill >/dev/null 2>&1 && rfkill unblock wifi 2>/dev/null || true
+ip link set "$IFACE" up 2>/dev/null || true
+
+# --- 4. associate + DHCP ----------------------------------------------------
+if wpa_cli -i "$IFACE" status >/dev/null 2>&1; then
+  log "wpa_supplicant already running on $IFACE"
+else
+  log "starting wpa_supplicant on $IFACE with $CONF"
+  wpa_supplicant -B -i "$IFACE" -c "$CONF"
+fi
+
+dhcpcd "$IFACE" 2>/dev/null || dhcpcd -n "$IFACE" 2>/dev/null || true
+log "up"

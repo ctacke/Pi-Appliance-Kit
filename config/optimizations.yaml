@@ -14,6 +14,8 @@ toggles:
   keep_wifi: true            # false on ethernet-only units (Pi 4 / 3B+). Zero 2 W must keep true.
   keep_ethernet: true        # Pi 4 and 3B+ (both have a NIC); ignored on Zero 2 W (no NIC).
   wifi_startup: late         # late = start wpa_supplicant after boot (off the critical path)
+  wifi_country: US           # ISO 3166-1 alpha-2. REQUIRED: the radio stays rfkill-blocked without it.
+  timezone: America/Chicago  # tzdata name (US Central). `timedatectl list-timezones` for others.
   keep_ssh: socket           # socket | late | off   (socket = on-demand, zero boot cost)
   keep_avahi: true           # mDNS / .local discovery; started late (off boot path)
   keep_uart_console: false   # true only if you use a serial console for debugging
@@ -38,6 +40,9 @@ purge:
 install:
   - dhcpcd5                  # lightweight DHCP client replacing NetworkManager
   - nano                     # on-device editor (root is read-only; see README)
+  - wpasupplicant            # WiFi association; NetworkManager is purged, so this is required
+  - iw                       # set the regulatory domain (wifi-up)
+  - rfkill                   # unblock the radio (wifi-up)
 
 # --- systemd units to disable (won't start at boot; still installed) --------
 disable:
