@@ -6,8 +6,26 @@
 # read-only (ordered by rpi-data-init.service).
 set -euo pipefail
 
-# Already provisioned? (label present)
-if blkid -L data >/dev/null 2>&1; then
+# The appliance login that owns /data (so the app can read/write without root).
+APP_USER="${APP_USER:-pi}"
+
+# Give $APP_USER ownership of the filesystem root of the data partition. Runs
+# BEFORE data.mount, so the fs isn't mounted yet — mount it privately, chown,
+# unmount. Cheap and idempotent on later boots.
+ensure_owner() {
+  local part="$1" mnt
+  id "$APP_USER" >/dev/null 2>&1 || return 0
+  mnt="$(mktemp -d)"
+  mount "$part" "$mnt"
+  chown "$APP_USER":"$APP_USER" "$mnt"
+  chmod 0775 "$mnt"
+  umount "$mnt"
+  rmdir "$mnt"
+}
+
+# Already provisioned? (label present) — still make sure $APP_USER owns it.
+if DATA_PART="$(blkid -L data 2>/dev/null)"; then
+  ensure_owner "$DATA_PART"
   exit 0
 fi
 
@@ -37,4 +55,5 @@ fi
 echo "rpi-data-init: formatting $DATA_PART as ext4 label=data"
 mkfs.ext4 -F -L data "$DATA_PART"
 mkdir -p /data
+ensure_owner "$DATA_PART"
 echo "rpi-data-init: done"
