@@ -31,6 +31,8 @@ fi
 c_info "manifest: $MANIFEST   firmware: $FW_DIR   dry-run: $DRY_RUN"
 
 t() { yaml_toggle "$1" "$MANIFEST"; }
+iface() { yaml_nested interfaces "$1" "$MANIFEST"; }
+APP_USER="${APP_USER:-pi}"   # the appliance login the buses are enabled for
 
 # --- 1. overlay files -------------------------------------------------------
 c_info "installing overlay files"
@@ -145,6 +147,30 @@ else
   c_skip "default target already multi-user.target"
 fi
 
+# --- 3b. hardware interfaces (gpio / i2c / spi) -----------------------------
+# Enable the buses for the appliance user: install the userspace tools, load the
+# needed kernel module, and add $APP_USER to the gpio/i2c/spi groups so the
+# /dev/{gpiochip*,i2c-*,spidev*} nodes are usable without root. The firmware
+# dtparams that actually expose i2c/spi are added to config.txt in section 5.
+c_info "hardware interfaces (user: $APP_USER)"
+if [ "$(iface gpio)" = "true" ]; then
+  install_pkg gpiod            # gpioget/gpioset/gpiodetect/gpioinfo (libgpiod CLI)
+  install_pkg raspi-gpio       # Pi-specific pin inspector
+  install_pkg python3-libgpiod # Python bindings
+  add_user_group "$APP_USER" gpio
+fi
+if [ "$(iface i2c)" = "true" ]; then
+  install_pkg i2c-tools        # i2cdetect/i2cget/i2cset/i2cdump
+  install_pkg python3-smbus    # Python SMBus bindings
+  ensure_module i2c-dev        # creates /dev/i2c-* at boot
+  add_user_group "$APP_USER" i2c
+fi
+if [ "$(iface spi)" = "true" ]; then
+  install_pkg spi-tools        # spi-config/spi-pipe
+  install_pkg python3-spidev   # Python SPI bindings
+  add_user_group "$APP_USER" spi
+fi
+
 # --- 4. journald ------------------------------------------------------------
 if [ "$(t journald_storage)" = "volatile" ]; then
   run mkdir -p /etc/systemd/journald.conf.d
@@ -156,6 +182,8 @@ c_info "firmware config"
 mapfile -t CFG < <(yaml_list config_txt "$MANIFEST")
 mapfile -t HW  < <(yaml_list hardware_overlays "$MANIFEST")
 [ "$(t keep_uart_console)" = "true" ] && CFG+=("enable_uart=1")
+[ "$(iface i2c)" = "true" ] && CFG+=("dtparam=i2c_arm=on")
+[ "$(iface spi)" = "true" ] && CFG+=("dtparam=spi=on")
 apply_block "$CONFIG_TXT" "${CFG[@]}" "${HW[@]}"
 mapfile -t CMD < <(yaml_list cmdline_txt "$MANIFEST")
 append_cmdline "$CMDLINE_TXT" "${CMD[@]}"

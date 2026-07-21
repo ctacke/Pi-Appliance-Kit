@@ -50,6 +50,21 @@ yaml_toggle() {
   ' "$file"
 }
 
+# Read a scalar `NAME:` nested one level under an arbitrary top-level `SECTION:`.
+yaml_nested() {
+  local section="$1" name="$2" file="$3"
+  awk -v section="$section" -v name="$name" '
+    $0 ~ "^"section":[[:space:]]*$" { grab=1; next }
+    grab && /^[^[:space:]#]/ { grab=0 }
+    grab && $1 == name":" {
+      sub(/^[[:space:]]*[^:]+:[[:space:]]*/, "")
+      sub(/[[:space:]]*#.*$/, "")
+      gsub(/^["'"'"']|["'"'"']$/, "")
+      print; exit
+    }
+  ' "$file"
+}
+
 # ---- systemd helpers (idempotent) ------------------------------------------
 unit_exists()   { systemctl list-unit-files "$1" >/dev/null 2>&1 && \
                   systemctl cat "$1" >/dev/null 2>&1; }
@@ -90,6 +105,28 @@ purge_pkg() {
 install_pkg() {
   pkg_installed "$1" && { c_skip "already installed: $1"; return 0; }
   run apt-get install -y "$1" && c_ok "installed: $1"
+}
+
+# ---- user / kernel-module helpers (idempotent) -----------------------------
+# Add a user to a supplementary group so bus device nodes (chowned to that group
+# by the RPi udev rules) are usable without root. Creates the group if absent.
+add_user_group() {
+  local u="$1" g="$2"
+  id "$u" >/dev/null 2>&1 || { c_skip "no user '$u' — skipping group $g"; return 0; }
+  getent group "$g" >/dev/null 2>&1 || run groupadd -f "$g"
+  if id -nG "$u" 2>/dev/null | grep -qw "$g"; then
+    c_skip "$u already in group: $g"; return 0
+  fi
+  run usermod -aG "$g" "$u" && c_ok "added $u to group: $g"
+}
+
+# Ensure a kernel module is loaded at boot via /etc/modules (idempotent).
+ensure_module() {
+  local m="$1" file="/etc/modules"
+  if [ -f "$file" ] && grep -qE "^[[:space:]]*$m([[:space:]#].*)?$" "$file"; then
+    c_skip "module already at boot: $m"; return 0
+  fi
+  run bash -c "printf '%s\n' '$m' >> '$file'" && c_ok "module at boot: $m"
 }
 
 # ---- config file block editing (idempotent, marker-delimited) --------------

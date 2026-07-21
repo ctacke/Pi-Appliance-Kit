@@ -28,6 +28,17 @@ toggles:
     mount: /data
     fstype: ext4
 
+# --- Hardware interfaces to enable for the appliance user (default: pi) -----
+# Turns on the GPIO/I2C/SPI buses and installs their userspace tools:
+#   gpio -> gpiod, raspi-gpio, python3-libgpiod   (adds user to group 'gpio')
+#   i2c  -> i2c-tools, python3-smbus              (dtparam=i2c_arm=on, loads i2c-dev, group 'i2c')
+#   spi  -> spi-tools, python3-spidev             (dtparam=spi=on, group 'spi')
+# Override the account with APP_USER=<name> when running apply.sh.
+interfaces:
+  gpio: true
+  i2c: true
+  spi: true
+
 # --- Packages to purge (removed entirely; biggest boot + size wins) ---------
 purge:
   - cloud-init               # ~7s combined on stock Lite — the #1 win

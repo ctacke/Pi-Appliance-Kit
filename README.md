@@ -126,6 +126,40 @@ sudo raspi-config nonint enable_overlayfs && sudo reboot
 (Better for fleets: add the packages to `config/optimizations.yaml` `install:`
 and rebuild the image so every device ships with them.)
 
+### GPIO, I2C, and SPI
+
+The image enables the **GPIO**, **I2C**, and **SPI** buses for the `pi` user out
+of the box, so your app can talk to sensors, displays, and other peripherals
+without running as root. Each bus installs its userspace tools and adds `pi` to
+the matching group:
+
+| Bus | Tools installed | Enabled by |
+|---|---|---|
+| **GPIO** | `gpiod` (`gpioget`/`gpioset`/`gpiodetect`/`gpioinfo`), `raspi-gpio`, `python3-libgpiod` | group `gpio` |
+| **I2C** | `i2c-tools` (`i2cdetect`/`i2cget`/`i2cset`/`i2cdump`), `python3-smbus` | `dtparam=i2c_arm=on`, `i2c-dev` module, group `i2c` |
+| **SPI** | `spi-tools` (`spi-config`/`spi-pipe`), `python3-spidev` | `dtparam=spi=on`, group `spi` |
+
+Quick check on the device:
+
+```bash
+i2cdetect -y 1        # scan the I2C bus
+gpiodetect            # list GPIO chips
+ls /dev/spidev*       # SPI device nodes
+```
+
+Turn any bus off (or back on) in [`config/optimizations.yaml`](config/optimizations.yaml):
+
+```yaml
+interfaces:
+  gpio: true
+  i2c: true
+  spi: true
+```
+
+Enabling a bus that was off requires a reboot (the `dtparam` lines are read by
+the firmware at boot). If your appliance login isn't `pi`, run the applier with
+`APP_USER=<name> sudo ./scripts/apply.sh`.
+
 ### Changing the username, hostname, or password
 
 > The image ships with a baked identity — user **`pi`**, hostname **`pi-appliance`**,
@@ -270,6 +304,7 @@ against, not generic login:
 - **Storage**: no swap, `journald` in RAM, read-only root removes fsck from the path.
 - **Network/ssh off the critical path**: WiFi starts late; SSH via `ssh.socket` (on-demand, zero boot cost) instead of the metric-gaming "late" hack.
 - **App-specific hardware** (e.g. SPI overlays) is kept **separate** from speed tweaks — set `hardware_overlays` in the manifest.
+- **GPIO / I2C / SPI** enabled for the `pi` user with their tools (see [GPIO, I2C, and SPI](#gpio-i2c-and-spi)) — toggle in `interfaces:`.
 
 Full, tunable list: [`config/optimizations.yaml`](config/optimizations.yaml).
 
